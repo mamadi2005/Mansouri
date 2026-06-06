@@ -3,12 +3,12 @@ include 'db.php';
 date_default_timezone_set('Asia/Tehran');
 session_start();
 
-// چک ورود ادمین
 if(!isset($_SESSION['is_admin_logged']) || $_SESSION['is_admin_logged'] !== true){
     header("Location: login_admin.php");
     exit();
 }
 
+    // حذف کردن  دانشجو از لیست حضور یادم باشه
 if(isset($_GET['delete_id'])){
     $id = intval($_GET['delete_id']);
     mysqli_query($conn, "DELETE FROM attendance WHERE id=$id");
@@ -25,14 +25,9 @@ if(isset($_POST['generate_code'])){
     exit();
 }
 
-$checkCode = mysqli_query($conn,
-    "SELECT code, expires_at
-     FROM admin_codes
-     WHERE expires_at > NOW()
-     ORDER BY id DESC
-     LIMIT 1"
-);
-
+// گرفتن آخرین کد فعال استاد (که هنوز منقضی نشده)
+$checkCode = mysqli_query($conn, "SELECT code, expires_at FROM admin_codes WHERE expires_at > NOW() ORDER BY id DESC LIMIT 1");
+// این قسمت چک میکنه کدی توی دیتا بیس هست یا نه یادم باشه
 if(mysqli_num_rows($checkCode) > 0){
     $row = mysqli_fetch_assoc($checkCode);
     $result = $row['code'];
