@@ -3,7 +3,8 @@
 session_start();
 header('Content-Type: application/json; charset=utf-8');
 //
-if (!isset($_SESSION['is_logged']) || $_SESSION['is_logged'] !== true) {
+if (!isset($_SESSION['is_logged']) || $_SESSION['is_logged'] !== true
+    || !isset($_SESSION['code_verified']) || $_SESSION['code_verified'] !== true) {
     http_response_code(403);
     echo json_encode(['success' => false, 'message' => 'ابتدا وارد شوید']);
     exit();
@@ -15,11 +16,20 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     exit();
 }
 
-$full_name = trim($_POST['full_name'] ?? '');
-$student_code = trim($_POST['student_code'] ?? '');
+// توکن CSRF را بررسی می‌کنیم
+$token = $_POST['csrf_token'] ?? '';
+if (!is_string($token) || empty($_SESSION['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $token)) {
+    http_response_code(403);
+    echo json_encode(['success' => false, 'message' => 'درخواست نامعتبر است']);
+    exit();
+}
+
+// هویت دانشجو فقط از سشن خوانده می‌شود نه از ورودی کاربر
+$full_name = trim((string)($_SESSION['full_name'] ?? ''));
+$student_code = trim((string)($_SESSION['student_code'] ?? ''));
 $dars = trim($_POST['dars'] ?? '');
 
-if ($full_name === '' || $student_code === '' || $dars === '') {
+if ($full_name === '' || $student_code === '' || $dars === '' || mb_strlen($dars) > 255) {
     http_response_code(400);
     echo json_encode(['success' => false, 'message' => 'اطلاعات کامل نیست']);
     exit();
@@ -30,8 +40,9 @@ require_once 'db.php';
 $stmt = $conn->prepare("INSERT INTO attendance (student_code, full_name, dars) VALUES (?, ?, ?)");
 
 if (!$stmt) {
+    error_log('submit_presence.php prepare failed: ' . $conn->error);
     http_response_code(500);
-    echo json_encode(['success' => false, 'message' => 'خطا در prepare']);
+    echo json_encode(['success' => false, 'message' => 'خطا در ثبت اطلاعات']);
     exit();
 }
 // پارامترها را به صورت ایمن به کوئری متصل می‌کنیم

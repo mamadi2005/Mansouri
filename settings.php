@@ -1,9 +1,8 @@
 <?php
 include 'db.php';
 
-
-
 session_start();
+require_once 'csrf.php';
 date_default_timezone_set('Asia/Tehran');
 
         if(!isset($_SESSION['is_admin_logged']) || $_SESSION['is_admin_logged'] !== true){
@@ -14,11 +13,26 @@ date_default_timezone_set('Asia/Tehran');
 // این کد برای آپدیت اطلاعات استاد هست یادم باشه
 
 if(isset($_POST['update_info'])){
-$username = mysqli_real_escape_string($conn, $_POST['username']);
-      $password = mysqli_real_escape_string($conn, $_POST['password']);
-    $hashed_password = password_hash($password, PASSWORD_DEFAULT);
-$update = mysqli_query($conn, "UPDATE admin SET username='$username', password='$hashed_password' WHERE id=1");
-        $_SESSION['msg'] = $update ? "اطلاعات استاد آپدیت شد" : "خطا در به‌روزرسانی: ".mysqli_error($conn);
+    csrf_validate();
+
+    $username = trim($_POST['username'] ?? '');
+    $password = $_POST['password'] ?? '';
+
+    if($username === '' || mb_strlen($username) > 255){
+        $_SESSION['msg'] = "نام کاربری معتبر نیست";
+    } elseif(strlen($password) < 8){
+        $_SESSION['msg'] = "رمز عبور باید حداقل ۸ کاراکتر باشد";
+    } else {
+        $hashed_password = password_hash($password, PASSWORD_DEFAULT);
+        $stmt = $conn->prepare("UPDATE admin SET username = ?, password = ? WHERE id = 1");
+        $stmt->bind_param('ss', $username, $hashed_password);
+        $update = $stmt->execute();
+        $stmt->close();
+        if(!$update){
+            error_log("settings.php update_info failed: " . mysqli_error($conn));
+        }
+        $_SESSION['msg'] = $update ? "اطلاعات استاد آپدیت شد" : "خطا در به‌روزرسانی";
+    }
     header("Location: settings.php");
     exit();
 }
@@ -27,26 +41,51 @@ $update = mysqli_query($conn, "UPDATE admin SET username='$username', password='
 //  این کد اضافه کردن دانشجو به لیست  هست یادم باشه
 
 if(isset($_POST['add_student'])){
-                $code = mysqli_real_escape_string($conn, $_POST['student_code']);
-                $check = mysqli_query($conn, "SELECT * FROM allowed_students WHERE student_code='$code'");
-                if(mysqli_num_rows($check) > 0){
-                    $_SESSION['msg'] = "این دانشجو قبلاً اضافه شده";
-                } else {
-                    $insert = mysqli_query($conn,"INSERT INTO allowed_students (student_code) VALUES ('$code')");
-                    $_SESSION['msg'] = $insert ? "دانشجو اضافه شد" : "خطا: ".mysqli_error($conn);
-                }
-                header("Location: settings.php");
+    csrf_validate();
+
+    $code = trim($_POST['student_code'] ?? '');
+    if($code === '' || mb_strlen($code) > 50){
+        $_SESSION['msg'] = "کد دانشجویی معتبر نیست";
+    } else {
+        $stmt = $conn->prepare("SELECT id FROM allowed_students WHERE student_code = ?");
+        $stmt->bind_param('s', $code);
+        $stmt->execute();
+        $check = $stmt->get_result();
+        $exists = mysqli_num_rows($check) > 0;
+        $stmt->close();
+
+        if($exists){
+            $_SESSION['msg'] = "این دانشجو قبلاً اضافه شده";
+        } else {
+            $stmt = $conn->prepare("INSERT INTO allowed_students (student_code) VALUES (?)");
+            $stmt->bind_param('s', $code);
+            $insert = $stmt->execute();
+            $stmt->close();
+            if(!$insert){
+                error_log("settings.php add_student failed: " . mysqli_error($conn));
+            }
+            $_SESSION['msg'] = $insert ? "دانشجو اضافه شد" : "خطا در افزودن دانشجو";
+        }
+    }
+    header("Location: settings.php");
     exit();
 }
 
 //این کد حذف دانشجو هست یادم باشه
 
 
-if(isset($_GET['delete_id'])){
-    $delete_id = intval($_GET['delete_id']);
+if(isset($_POST['delete_id'])){
+    csrf_validate();
+    $delete_id = intval($_POST['delete_id']);
     if($delete_id > 0){
-        $delete = mysqli_query($conn, "DELETE FROM allowed_students WHERE id=$delete_id LIMIT 1");
-        $_SESSION['msg'] = $delete ? "دانشجو حذف شد" : ("خطا در حذف: ".mysqli_error($conn));
+        $stmt = $conn->prepare("DELETE FROM allowed_students WHERE id = ? LIMIT 1");
+        $stmt->bind_param('i', $delete_id);
+        $delete = $stmt->execute();
+        $stmt->close();
+        if(!$delete){
+            error_log("settings.php delete failed: " . mysqli_error($conn));
+        }
+        $_SESSION['msg'] = $delete ? "دانشجو حذف شد" : "خطا در حذف";
     } else {
         $_SESSION['msg'] = "آی‌دی نامعتبر برای حذف";
     }
@@ -71,12 +110,13 @@ header("Location: settings.php");
     <a href="admin.php" class="logout_header">بازگشت به پنل استاد</a>
     <a href="logout_admin.php" class="logout_header">خروج</a>
 
-    <?php if($msg) echo "<p style='color:green;'>$msg</p>"; ?>
+    <?php if($msg) echo "<p style='color:green;'>".htmlspecialchars($msg, ENT_QUOTES, 'UTF-8')."</p>"; ?>
 
     <hr>
 
     <h2>تغییر اطلاعات استاد</h2>
     <form method="post">
+        <?php echo csrf_field(); ?>
         <label>نام کاربری:</label>
         <input type="text" name="username" required placeholder="">
         
@@ -99,6 +139,7 @@ header("Location: settings.php");
 
     <h2>افزودن دانشجو به لیست</h2>
     <form method="post">
+        <?php echo csrf_field(); ?>
         <input type="text" name="student_code" placeholder="کد دانشجو رو وارد کن" required>
         <button type="submit" name="add_student">افزودن</button>
     </form>
@@ -113,10 +154,15 @@ header("Location: settings.php");
 // این کد برای نمایش لیست دانشجویان هست یادم باشه
 
     $list = mysqli_query($conn,"SELECT * FROM allowed_students ORDER BY id ASC");
+    $safe = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
     while($row = mysqli_fetch_assoc($list)){
         echo "<li>";
-        echo $row['student_code'];
-        echo " <a href='settings.php?delete_id=".$row['id']."' onclick=\"return confirm('حذف شود؟');\" style='color:red;'>حذف</a>";
+        echo $safe($row['student_code']);
+        echo " <form method='post' style='display:inline;' onsubmit=\"return confirm('حذف شود؟');\">";
+        echo csrf_field();
+        echo "<input type='hidden' name='delete_id' value='".$safe($row['id'])."'>";
+        echo "<button type='submit' style='color:red; background:none; border:none; cursor:pointer;'>حذف</button>";
+        echo "</form>";
         echo "</li>";
     }
     ?>
