@@ -1,5 +1,6 @@
 <?php
 session_start();
+require_once 'csrf.php';
 if(
     !isset($_SESSION['code_verified']) ||
     $_SESSION['code_verified'] !== true
@@ -7,9 +8,6 @@ if(
     header("location: panel.php");
     exit();
 }
-
-$full_name = $_SESSION['full_name'];
-$student_code = $_SESSION['student_code'];
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -129,8 +127,7 @@ button:hover {
 <script>
 document.getElementById('submit').onclick = function(){
 
-    let full_name = "<?php echo $full_name; ?>";
-    let student_code = "<?php echo $student_code; ?>";
+    let csrf_token = <?php echo json_encode(csrf_token(), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
     let dars = document.getElementById('darsInput').value;
     let check = document.getElementById('checkbox').checked;
 
@@ -146,9 +143,12 @@ document.getElementById('submit').onclick = function(){
     const xhttp = new XMLHttpRequest();
 
     xhttp.onreadystatechange = function(){
-        if(this.readyState == 4 && this.status == 200){
+        if(this.readyState != 4){ return; }
+        if(this.status == 200){
             alert("حضور + درس ثبت شد");
             window.location.href = "logout.php";
+        } else {
+            alert("خطا در ثبت حضور");
         }
     };
 
@@ -156,8 +156,7 @@ document.getElementById('submit').onclick = function(){
     xhttp.setRequestHeader("Content-type", "application/x-www-form-urlencoded");
 
     xhttp.send(
-        "full_name=" + encodeURIComponent(full_name) +
-        "&student_code=" + encodeURIComponent(student_code) +
+        "csrf_token=" + encodeURIComponent(csrf_token) +
         "&dars=" + encodeURIComponent(dars)
     );
 };

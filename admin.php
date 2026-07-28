@@ -2,6 +2,7 @@
 include 'db.php';
 date_default_timezone_set('Asia/Tehran');
 session_start();
+require_once 'csrf.php';
 
 if(!isset($_SESSION['is_admin_logged']) || $_SESSION['is_admin_logged'] !== true){
     header("Location: login_admin.php");
@@ -9,18 +10,26 @@ if(!isset($_SESSION['is_admin_logged']) || $_SESSION['is_admin_logged'] !== true
 }
 
     // حذف کردن  دانشجو از لیست حضور یادم باشه
-if(isset($_GET['delete_id'])){
-    $id = intval($_GET['delete_id']);
-    mysqli_query($conn, "DELETE FROM attendance WHERE id=$id");
+if(isset($_POST['delete_id'])){
+    csrf_validate();
+    $id = intval($_POST['delete_id']);
+    $stmt = $conn->prepare("DELETE FROM attendance WHERE id = ?");
+    $stmt->bind_param('i', $id);
+    $stmt->execute();
+    $stmt->close();
     header("Location: admin.php");
     exit();
 }
 
 if(isset($_POST['generate_code'])){
+    csrf_validate();
     $adad = random_int(1000,9999);
     $expire = date("Y-m-d H:i:s", time() + 120); 
     mysqli_query($conn, "DELETE FROM admin_codes");
-    mysqli_query($conn, "INSERT INTO admin_codes(code, expires_at) VALUES('$adad','$expire')");
+    $stmt = $conn->prepare("INSERT INTO admin_codes(code, expires_at) VALUES(?, ?)");
+    $stmt->bind_param('is', $adad, $expire);
+    $stmt->execute();
+    $stmt->close();
     header("Location: admin.php");
     exit();
 }
@@ -37,16 +46,14 @@ if(mysqli_num_rows($checkCode) > 0){
     $expireTime = 0;
 }
 mysqli_query($conn, "DELETE FROM admin_codes WHERE expires_at <= NOW()");
-$list = mysqli_query($conn, "SELECT * FROM attendance ORDER BY id DESC");
-?>
-<?
-?>
-<?php
 if(isset($_POST['end_term'])){
+    csrf_validate();
     mysqli_query($conn, "DELETE FROM attendance");
     header("Location: admin.php");
     exit();
 }
+
+$list = mysqli_query($conn, "SELECT * FROM attendance ORDER BY id DESC");
 ?>
 <!DOCTYPE html>
 <html lang="fa">
@@ -58,6 +65,7 @@ if(isset($_POST['end_term'])){
 </head>
 <body>
     <form method="post" onsubmit="return confirm('مطمئنی میخوای کله لیست حضور ها پاک بشه؟  یادت باشه این کار غیر قابل برگشته (:');">
+    <?php echo csrf_field(); ?>
     <button type="submit" name="end_term" style="background:red;color:white;padding:10px;border:none;cursor:pointer;">
         پایان ترم (حذف کل حضورها)
     </button>
@@ -72,6 +80,7 @@ if(isset($_POST['end_term'])){
 
 <h2>ساخت کد ۴ رقمی</h2>
 <form method="post">
+    <?php echo csrf_field(); ?>
     <button type="submit" name="generate_code">ساخت کد جدید</button>
 </form>
 
@@ -80,7 +89,7 @@ if(isset($_POST['end_term'])){
 <h2>کد فعلی استاد</h2>
 
 <?php if($result): ?>
-    <h1><?php echo $result; ?></h1>
+    <h1><?php echo htmlspecialchars($result, ENT_QUOTES, 'UTF-8'); ?></h1>
 <?php else: ?>
     <p>هیچ کدی فعال نیست</p>
 <?php endif; ?>
@@ -92,15 +101,18 @@ if(isset($_POST['end_term'])){
 <h2>لیست حضور دانشجویان</h2>
 
 <?php
+$safe = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
 if(mysqli_num_rows($list) > 0){
     while($row = mysqli_fetch_assoc($list)){
         echo "<p>";
-        // echo $row['full_name']." - ".$row['student_code']." - ".$row['created_at'];
-        echo $row['full_name']." - ".$row['student_code']." - ".$row['dars']." - ".$row['created_at'];
+        echo $safe($row['full_name'])." - ".$safe($row['student_code'])." - ".$safe($row['dars'])." - ".$safe($row['created_at']);
 
-        echo " <a href='admin.php?delete_id=".$row['id']."' 
-        onclick=\"return confirm('مطمئنی میخوای این دانشجو حذف بشه از لیست حضور؟');\"
-        style='color:red; margin-right:10px;'>حذف</a>";
+        echo " <form method='post' style='display:inline;'
+        onsubmit=\"return confirm('مطمئنی میخوای این دانشجو حذف بشه از لیست حضور؟');\">";
+        echo csrf_field();
+        echo "<input type='hidden' name='delete_id' value='".$safe($row['id'])."'>";
+        echo "<button type='submit' style='color:red; margin-right:10px; background:none; border:none; cursor:pointer;'>حذف</button>";
+        echo "</form>";
 
         echo "</p>";
     }
@@ -110,7 +122,7 @@ if(mysqli_num_rows($list) > 0){
 ?>
 
 <script>
-let expireTime = <?php echo $expireTime; ?>;
+let expireTime = <?php echo (int)$expireTime; ?>;
 
 if(expireTime > 0){
     let x = setInterval(function(){
