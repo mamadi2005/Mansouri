@@ -27,24 +27,19 @@ if ($full_name === '' || $student_code === '' || $dars === '') {
 
 require_once 'db.php';
 
-$stmt = $conn->prepare("INSERT INTO attendance (student_code, full_name, dars) VALUES (?, ?, ?)");
-
-if (!$stmt) {
+try {
+    $stmt = $conn->prepare("INSERT INTO attendance (student_code, full_name, dars) VALUES (?, ?, ?)");
+    // پارامترها را به صورت ایمن به کوئری متصل می‌کنیم
+    $stmt->bind_param('sss', $student_code, $full_name, $dars);
+    $stmt->execute();
+    $stmt->close();
+} catch (Throwable $e) {
+    // خطا در لاگ سرور ثبت می‌شود و پاسخ JSON با وضعیت ۵۰۰ برمی‌گردد
+    $message = db_log_error($e, 'submit_presence');
     http_response_code(500);
-    echo json_encode(['success' => false, 'message' => 'خطا در prepare']);
+    echo json_encode(['success' => false, 'message' => $message]);
     exit();
 }
-// پارامترها را به صورت ایمن به کوئری متصل می‌کنیم
-$stmt->bind_param('sss', $student_code, $full_name, $dars);
 
-$executed = $stmt->execute();
-$stmt->close();
-// اگر اجرا موفق بود پاسخ موفقیت‌آمیز می‌فرستیم
-if ($executed) {
-    echo json_encode(['success' => true, 'message' => 'حضور ثبت شد']);
-    exit();
-}
-// اگر به اینجا رسیدیم یعنی خطا در اجرا بوده
-http_response_code(500);
-echo json_encode(['success' => false, 'message' => 'خطا در ثبت اطلاعات']);
+echo json_encode(['success' => true, 'message' => 'حضور ثبت شد']);
 exit();

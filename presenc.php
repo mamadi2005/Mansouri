@@ -8,8 +8,8 @@ if(
     exit();
 }
 
-$full_name = $_SESSION['full_name'];
-$student_code = $_SESSION['student_code'];
+$full_name = $_SESSION['full_name'] ?? '';
+$student_code = $_SESSION['student_code'] ?? '';
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -129,8 +129,8 @@ button:hover {
 <script>
 document.getElementById('submit').onclick = function(){
 
-    let full_name = "<?php echo $full_name; ?>";
-    let student_code = "<?php echo $student_code; ?>";
+    let full_name = <?php echo json_encode($full_name); ?>;
+    let student_code = <?php echo json_encode($student_code); ?>;
     let dars = document.getElementById('darsInput').value;
     let check = document.getElementById('checkbox').checked;
 
@@ -146,10 +146,28 @@ document.getElementById('submit').onclick = function(){
     const xhttp = new XMLHttpRequest();
 
     xhttp.onreadystatechange = function(){
-        if(this.readyState == 4 && this.status == 200){
-            alert("حضور + درس ثبت شد");
-            window.location.href = "logout.php";
+        if(this.readyState != 4){
+            return;
         }
+
+        let response = null;
+        try {
+            response = JSON.parse(this.responseText);
+        } catch (e) {
+            response = null;
+        }
+
+        if(this.status == 200 && response && response.success){
+            alert(response.message || "حضور + درس ثبت شد");
+            window.location.href = "logout.php";
+            return;
+        }
+
+        alert((response && response.message) || "ثبت حضور انجام نشد. لطفا دوباره تلاش کنید");
+    };
+
+    xhttp.onerror = function(){
+        alert("ارتباط با سرور برقرار نشد");
     };
 
     xhttp.open("POST", "submit_presence.php", true);

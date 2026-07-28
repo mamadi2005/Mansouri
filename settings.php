@@ -1,5 +1,5 @@
 <?php
-include 'db.php';
+require_once 'db.php';
 
 
 
@@ -14,11 +14,18 @@ date_default_timezone_set('Asia/Tehran');
 // این کد برای آپدیت اطلاعات استاد هست یادم باشه
 
 if(isset($_POST['update_info'])){
-$username = mysqli_real_escape_string($conn, $_POST['username']);
-      $password = mysqli_real_escape_string($conn, $_POST['password']);
+    $username = $_POST['username'] ?? '';
+    $password = $_POST['password'] ?? '';
     $hashed_password = password_hash($password, PASSWORD_DEFAULT);
-$update = mysqli_query($conn, "UPDATE admin SET username='$username', password='$hashed_password' WHERE id=1");
-        $_SESSION['msg'] = $update ? "اطلاعات استاد آپدیت شد" : "خطا در به‌روزرسانی: ".mysqli_error($conn);
+    try {
+        $stmt = $conn->prepare("UPDATE admin SET username=?, password=? WHERE id=1");
+        $stmt->bind_param("ss", $username, $hashed_password);
+        $stmt->execute();
+        $stmt->close();
+        $_SESSION['msg'] = "اطلاعات استاد آپدیت شد";
+    } catch (Throwable $e) {
+        $_SESSION['msg'] = db_log_error($e, 'settings_update_admin');
+    }
     header("Location: settings.php");
     exit();
 }
@@ -27,15 +34,27 @@ $update = mysqli_query($conn, "UPDATE admin SET username='$username', password='
 //  این کد اضافه کردن دانشجو به لیست  هست یادم باشه
 
 if(isset($_POST['add_student'])){
-                $code = mysqli_real_escape_string($conn, $_POST['student_code']);
-                $check = mysqli_query($conn, "SELECT * FROM allowed_students WHERE student_code='$code'");
-                if(mysqli_num_rows($check) > 0){
-                    $_SESSION['msg'] = "این دانشجو قبلاً اضافه شده";
-                } else {
-                    $insert = mysqli_query($conn,"INSERT INTO allowed_students (student_code) VALUES ('$code')");
-                    $_SESSION['msg'] = $insert ? "دانشجو اضافه شد" : "خطا: ".mysqli_error($conn);
-                }
-                header("Location: settings.php");
+    $code = $_POST['student_code'] ?? '';
+    try {
+        $stmt = $conn->prepare("SELECT id FROM allowed_students WHERE student_code=?");
+        $stmt->bind_param("s", $code);
+        $stmt->execute();
+        $exists = $stmt->get_result()->num_rows > 0;
+        $stmt->close();
+
+        if($exists){
+            $_SESSION['msg'] = "این دانشجو قبلاً اضافه شده";
+        } else {
+            $stmt = $conn->prepare("INSERT INTO allowed_students (student_code) VALUES (?)");
+            $stmt->bind_param("s", $code);
+            $stmt->execute();
+            $stmt->close();
+            $_SESSION['msg'] = "دانشجو اضافه شد";
+        }
+    } catch (Throwable $e) {
+        $_SESSION['msg'] = db_log_error($e, 'settings_add_student');
+    }
+    header("Location: settings.php");
     exit();
 }
 
@@ -45,8 +64,15 @@ if(isset($_POST['add_student'])){
 if(isset($_GET['delete_id'])){
     $delete_id = intval($_GET['delete_id']);
     if($delete_id > 0){
-        $delete = mysqli_query($conn, "DELETE FROM allowed_students WHERE id=$delete_id LIMIT 1");
-        $_SESSION['msg'] = $delete ? "دانشجو حذف شد" : ("خطا در حذف: ".mysqli_error($conn));
+        try {
+            $stmt = $conn->prepare("DELETE FROM allowed_students WHERE id=? LIMIT 1");
+            $stmt->bind_param("i", $delete_id);
+            $stmt->execute();
+            $stmt->close();
+            $_SESSION['msg'] = "دانشجو حذف شد";
+        } catch (Throwable $e) {
+            $_SESSION['msg'] = db_log_error($e, 'settings_delete_student');
+        }
     } else {
         $_SESSION['msg'] = "آی‌دی نامعتبر برای حذف";
     }
@@ -71,7 +97,7 @@ header("Location: settings.php");
     <a href="admin.php" class="logout_header">بازگشت به پنل استاد</a>
     <a href="logout_admin.php" class="logout_header">خروج</a>
 
-    <?php if($msg) echo "<p style='color:green;'>$msg</p>"; ?>
+    <?php if($msg) echo "<p style='color:green;'>" . htmlspecialchars($msg, ENT_QUOTES, 'UTF-8') . "</p>"; ?>
 
     <hr>
 
@@ -112,12 +138,16 @@ header("Location: settings.php");
     <?php
 // این کد برای نمایش لیست دانشجویان هست یادم باشه
 
-    $list = mysqli_query($conn,"SELECT * FROM allowed_students ORDER BY id ASC");
-    while($row = mysqli_fetch_assoc($list)){
-        echo "<li>";
-        echo $row['student_code'];
-        echo " <a href='settings.php?delete_id=".$row['id']."' onclick=\"return confirm('حذف شود؟');\" style='color:red;'>حذف</a>";
-        echo "</li>";
+    try {
+        $list = mysqli_query($conn,"SELECT * FROM allowed_students ORDER BY id ASC");
+        while($row = mysqli_fetch_assoc($list)){
+            echo "<li>";
+            echo htmlspecialchars($row['student_code'], ENT_QUOTES, 'UTF-8');
+            echo " <a href='settings.php?delete_id=".$row['id']."' onclick=\"return confirm('حذف شود؟');\" style='color:red;'>حذف</a>";
+            echo "</li>";
+        }
+    } catch (Throwable $e) {
+        echo "<li>" . htmlspecialchars(db_log_error($e, 'settings_list_students'), ENT_QUOTES, 'UTF-8') . "</li>";
     }
     ?>
     </ul>

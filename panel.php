@@ -1,3 +1,60 @@
+<?php
+session_start();
+
+require_once 'db.php';
+
+if(!isset($_SESSION['is_logged']) || $_SESSION['is_logged'] !== true){
+    header("location: login.php");
+    exit();
+}
+
+$error = "";
+
+if(isset($_POST['submit'])){
+
+    $entered_code = $_POST['code'] ?? "";
+
+    try {
+
+        $res = mysqli_query($conn, "
+            SELECT * FROM admin_codes
+            WHERE expires_at > NOW()
+            ORDER BY id DESC
+            LIMIT 1
+        ");
+
+        $row = mysqli_fetch_assoc($res);
+
+        if($row){
+
+            $now = date("Y-m-d H:i:s");
+
+            if($entered_code == $row['code'] && $now <= $row['expires_at']){
+
+                $_SESSION['code_verified'] = true;
+
+                header("location: presenc.php");
+                exit();
+
+            } else {
+
+                $error = "کد اشتباه یا منقضی شده ";
+
+            }
+
+        } else {
+
+            $error = "کد اشتباه یا منقضی شده";
+
+        }
+
+    } catch (Throwable $e) {
+
+        $error = db_log_error($e, 'panel_verify_code');
+
+    }
+}
+?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -18,60 +75,6 @@
     </form>
     </div>
 
-   <?php
-session_start();
-
-require_once 'db.php';
-
-if(!isset($_SESSION['is_logged']) || $_SESSION['is_logged'] !== true){
-    header("location: login.php");
-    exit();
-}
-
-$error = "";
-
-if(isset($_POST['submit'])){
-
-    $entered_code = $_POST['code'];
-
-    // $res = mysqli_query($conn, "
-    //     SELECT * FROM admin_codes
-    //     ORDER BY id DESC
-    //     LIMIT 1
-    // ");
-    $res = mysqli_query($conn, "
-    SELECT * FROM admin_codes
-    WHERE expires_at > NOW()
-    ORDER BY id DESC
-    LIMIT 1
-");
-
-    $row = mysqli_fetch_assoc($res);
-
-    if($row){
-
-        $now = date("Y-m-d H:i:s");
-
-        if($entered_code == $row['code'] && $now <= $row['expires_at']){
-
-            $_SESSION['code_verified'] = true;
-
-            header("location: presenc.php");
-            exit();
-
-        } else {
-
-            $error = "کد اشتباه یا منقضی شده ";
-
-        }
-
-    } else {
-
-        $error = "کد اشتباه یا منقضی شده";
-
-    }
-}
-?>
- <?php if(isset($error)) echo "<p>$error</p>"; ?>
+ <?php if($error !== "") echo "<p>" . htmlspecialchars($error, ENT_QUOTES, 'UTF-8') . "</p>"; ?>
 </body>
 </html>
