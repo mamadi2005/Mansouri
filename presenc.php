@@ -1,18 +1,13 @@
 <?php
-session_start();
-if(
-    !isset($_SESSION['code_verified']) ||
-    $_SESSION['code_verified'] !== true
-){
-    header("location: panel.php");
-    exit();
-}
+require_once 'includes/functions.php';
+start_app_session();
+require_code_verified();
 
 $full_name = $_SESSION['full_name'];
 $student_code = $_SESSION['student_code'];
 ?>
 <!DOCTYPE html>
-<html lang="en">
+<html lang="fa">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">

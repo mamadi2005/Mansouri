@@ -1,21 +1,9 @@
-
-
-<!DOCTYPE html>
-<html lang="fa">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ورود به پنل</title>
-<link rel="stylesheet" href="login.css">
-</head>
-<body>
-    <div class="container">
-<h1>ورود به پنل</h1>   
-<p>لطفا کد دانشجویی و نام و نام خانوادگی را وارد کنید</p>
-<span class="hint">نام و نام خانوادگی را به حروف فارسی تایپ کنید :)</span>
-       <?php
+<?php
+require_once 'includes/functions.php';
 include 'db.php';
-session_start();
+
+start_app_session();
+
 $message = "";
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $student_code = $_POST["student_code"];
@@ -28,16 +16,21 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $_SESSION['student_code'] = $student_code;
         $_SESSION['full_name'] = $full_name;
 
-header("Location: panel.php");
-exit;
-
+        redirect("panel.php");
     } else {
 
         $message = "کد دانشجویی وجود ندارد";
 
     }
 }
-?> 
+
+render_head('ورود به پنل', ['login.css']);
+?>
+<body>
+    <div class="container">
+<h1>ورود به پنل</h1>   
+<p>لطفا کد دانشجویی و نام و نام خانوادگی را وارد کنید</p>
+<span class="hint">نام و نام خانوادگی را به حروف فارسی تایپ کنید :)</span>
     <form method="post">
         <div class="form-group">
             <label for="student_code">کد دانشجویی</label>

@@ -1,19 +1,14 @@
 <?php
+require_once 'includes/functions.php';
 include 'db.php';
-date_default_timezone_set('Asia/Tehran');
-session_start();
-
-if(!isset($_SESSION['is_admin_logged']) || $_SESSION['is_admin_logged'] !== true){
-    header("Location: login_admin.php");
-    exit();
-}
+start_app_session();
+require_admin();
 
     // حذف کردن  دانشجو از لیست حضور یادم باشه
 if(isset($_GET['delete_id'])){
     $id = intval($_GET['delete_id']);
     mysqli_query($conn, "DELETE FROM attendance WHERE id=$id");
-    header("Location: admin.php");
-    exit();
+    redirect("admin.php");
 }
 
 if(isset($_POST['generate_code'])){
@@ -21,41 +16,28 @@ if(isset($_POST['generate_code'])){
     $expire = date("Y-m-d H:i:s", time() + 120); 
     mysqli_query($conn, "DELETE FROM admin_codes");
     mysqli_query($conn, "INSERT INTO admin_codes(code, expires_at) VALUES('$adad','$expire')");
-    header("Location: admin.php");
-    exit();
+    redirect("admin.php");
+}
+
+if(isset($_POST['end_term'])){
+    mysqli_query($conn, "DELETE FROM attendance");
+    redirect("admin.php");
 }
 
 // گرفتن آخرین کد فعال استاد (که هنوز منقضی نشده)
-$checkCode = mysqli_query($conn, "SELECT code, expires_at FROM admin_codes WHERE expires_at > NOW() ORDER BY id DESC LIMIT 1");
-// این قسمت چک میکنه کدی توی دیتا بیس هست یا نه یادم باشه
-if(mysqli_num_rows($checkCode) > 0){
-    $row = mysqli_fetch_assoc($checkCode);
-    $result = $row['code'];
-    $expireTime = strtotime($row['expires_at']) * 1000;
+$activeCode = get_active_admin_code($conn);
+if($activeCode){
+    $result = $activeCode['code'];
+    $expireTime = strtotime($activeCode['expires_at']) * 1000;
 } else {
     $result = null;
     $expireTime = 0;
 }
-mysqli_query($conn, "DELETE FROM admin_codes WHERE expires_at <= NOW()");
+delete_expired_admin_codes($conn);
 $list = mysqli_query($conn, "SELECT * FROM attendance ORDER BY id DESC");
+
+render_head('پنل استاد', ['admin.css']);
 ?>
-<?
-?>
-<?php
-if(isset($_POST['end_term'])){
-    mysqli_query($conn, "DELETE FROM attendance");
-    header("Location: admin.php");
-    exit();
-}
-?>
-<!DOCTYPE html>
-<html lang="fa">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>پنل استاد</title>
-    <link rel="stylesheet" href="admin.css">
-</head>
 <body>
     <form method="post" onsubmit="return confirm('مطمئنی میخوای کله لیست حضور ها پاک بشه؟  یادت باشه این کار غیر قابل برگشته (:');">
     <button type="submit" name="end_term" style="background:red;color:white;padding:10px;border:none;cursor:pointer;">
