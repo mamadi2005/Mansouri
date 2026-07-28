@@ -1,5 +1,5 @@
 <?php
-include 'db.php';
+require_once 'db.php';
 date_default_timezone_set('Asia/Tehran');
 session_start();
 
@@ -11,41 +11,66 @@ if(!isset($_SESSION['is_admin_logged']) || $_SESSION['is_admin_logged'] !== true
     // حذف کردن  دانشجو از لیست حضور یادم باشه
 if(isset($_GET['delete_id'])){
     $id = intval($_GET['delete_id']);
-    mysqli_query($conn, "DELETE FROM attendance WHERE id=$id");
+    try {
+        $stmt = $conn->prepare("DELETE FROM attendance WHERE id=?");
+        $stmt->bind_param("i", $id);
+        $stmt->execute();
+        $stmt->close();
+        $_SESSION['msg'] = "دانشجو از لیست حضور حذف شد";
+    } catch (Throwable $e) {
+        $_SESSION['msg'] = db_log_error($e, 'admin_delete_attendance');
+    }
     header("Location: admin.php");
     exit();
 }
 
 if(isset($_POST['generate_code'])){
     $adad = random_int(1000,9999);
-    $expire = date("Y-m-d H:i:s", time() + 120); 
-    mysqli_query($conn, "DELETE FROM admin_codes");
-    mysqli_query($conn, "INSERT INTO admin_codes(code, expires_at) VALUES('$adad','$expire')");
+    $expire = date("Y-m-d H:i:s", time() + 120);
+    try {
+        mysqli_query($conn, "DELETE FROM admin_codes");
+        $stmt = $conn->prepare("INSERT INTO admin_codes(code, expires_at) VALUES(?, ?)");
+        $stmt->bind_param("is", $adad, $expire);
+        $stmt->execute();
+        $stmt->close();
+    } catch (Throwable $e) {
+        $_SESSION['msg'] = db_log_error($e, 'admin_generate_code');
+    }
     header("Location: admin.php");
     exit();
 }
 
-// گرفتن آخرین کد فعال استاد (که هنوز منقضی نشده)
-$checkCode = mysqli_query($conn, "SELECT code, expires_at FROM admin_codes WHERE expires_at > NOW() ORDER BY id DESC LIMIT 1");
-// این قسمت چک میکنه کدی توی دیتا بیس هست یا نه یادم باشه
-if(mysqli_num_rows($checkCode) > 0){
-    $row = mysqli_fetch_assoc($checkCode);
-    $result = $row['code'];
-    $expireTime = strtotime($row['expires_at']) * 1000;
-} else {
-    $result = null;
-    $expireTime = 0;
-}
-mysqli_query($conn, "DELETE FROM admin_codes WHERE expires_at <= NOW()");
-$list = mysqli_query($conn, "SELECT * FROM attendance ORDER BY id DESC");
-?>
-<?
-?>
-<?php
 if(isset($_POST['end_term'])){
-    mysqli_query($conn, "DELETE FROM attendance");
+    try {
+        mysqli_query($conn, "DELETE FROM attendance");
+        $_SESSION['msg'] = "لیست حضور پاک شد";
+    } catch (Throwable $e) {
+        $_SESSION['msg'] = db_log_error($e, 'admin_end_term');
+    }
     header("Location: admin.php");
     exit();
+}
+
+$msg = $_SESSION['msg'] ?? '';
+unset($_SESSION['msg']);
+
+$result = null;
+$expireTime = 0;
+$list = null;
+
+try {
+    // گرفتن آخرین کد فعال استاد (که هنوز منقضی نشده)
+    $checkCode = mysqli_query($conn, "SELECT code, expires_at FROM admin_codes WHERE expires_at > NOW() ORDER BY id DESC LIMIT 1");
+    // این قسمت چک میکنه کدی توی دیتا بیس هست یا نه یادم باشه
+    if(mysqli_num_rows($checkCode) > 0){
+        $row = mysqli_fetch_assoc($checkCode);
+        $result = $row['code'];
+        $expireTime = strtotime($row['expires_at']) * 1000;
+    }
+    mysqli_query($conn, "DELETE FROM admin_codes WHERE expires_at <= NOW()");
+    $list = mysqli_query($conn, "SELECT * FROM attendance ORDER BY id DESC");
+} catch (Throwable $e) {
+    $msg = db_log_error($e, 'admin_load_page');
 }
 ?>
 <!DOCTYPE html>
@@ -64,6 +89,8 @@ if(isset($_POST['end_term'])){
 </form>
 <hr>
 <h1>به پنل استاد خوش آمدید</h1>
+
+<?php if($msg !== '') echo "<p>" . htmlspecialchars($msg, ENT_QUOTES, 'UTF-8') . "</p>"; ?>
 
 <a href="settings.php" class="logout_header">پنل تنظیمات</a>
 <a href="logout_admin.php" class="logout_header">خروج از پنل</a>
@@ -92,7 +119,9 @@ if(isset($_POST['end_term'])){
 <h2>لیست حضور دانشجویان</h2>
 
 <?php
-if(mysqli_num_rows($list) > 0){
+if($list === null){
+    echo "<p>لیست حضور به دلیل خطا قابل نمایش نیست</p>";
+} elseif(mysqli_num_rows($list) > 0){
     while($row = mysqli_fetch_assoc($list)){
         echo "<p>";
         // echo $row['full_name']." - ".$row['student_code']." - ".$row['created_at'];
