@@ -1,9 +1,7 @@
 <?php
 session_start();
-if(
-    !isset($_SESSION['code_verified']) ||
-    $_SESSION['code_verified'] !== true
-){
+require_once __DIR__ . '/lib/helpers.php';
+if(!is_code_verified($_SESSION)){
     header("location: panel.php");
     exit();
 }

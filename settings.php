@@ -1,12 +1,11 @@
 <?php
 include 'db.php';
-
-
+require_once __DIR__ . '/lib/helpers.php';
 
 session_start();
 date_default_timezone_set('Asia/Tehran');
 
-        if(!isset($_SESSION['is_admin_logged']) || $_SESSION['is_admin_logged'] !== true){
+        if(!is_admin_logged($_SESSION)){
             header("Location: login_admin.php");
             exit();
         }
@@ -43,7 +42,7 @@ if(isset($_POST['add_student'])){
 
 
 if(isset($_GET['delete_id'])){
-    $delete_id = intval($_GET['delete_id']);
+    $delete_id = normalize_delete_id($_GET['delete_id']);
     if($delete_id > 0){
         $delete = mysqli_query($conn, "DELETE FROM allowed_students WHERE id=$delete_id LIMIT 1");
         $_SESSION['msg'] = $delete ? "دانشجو حذف شد" : ("خطا در حذف: ".mysqli_error($conn));

@@ -1,24 +1,25 @@
 <?php
 include 'db.php';
+require_once __DIR__ . '/lib/helpers.php';
 date_default_timezone_set('Asia/Tehran');
 session_start();
 
-if(!isset($_SESSION['is_admin_logged']) || $_SESSION['is_admin_logged'] !== true){
+if(!is_admin_logged($_SESSION)){
     header("Location: login_admin.php");
     exit();
 }
 
     // حذف کردن  دانشجو از لیست حضور یادم باشه
 if(isset($_GET['delete_id'])){
-    $id = intval($_GET['delete_id']);
+    $id = normalize_delete_id($_GET['delete_id']);
     mysqli_query($conn, "DELETE FROM attendance WHERE id=$id");
     header("Location: admin.php");
     exit();
 }
 
 if(isset($_POST['generate_code'])){
-    $adad = random_int(1000,9999);
-    $expire = date("Y-m-d H:i:s", time() + 120); 
+    $adad = generate_admin_code();
+    $expire = admin_code_expiry(time());
     mysqli_query($conn, "DELETE FROM admin_codes");
     mysqli_query($conn, "INSERT INTO admin_codes(code, expires_at) VALUES('$adad','$expire')");
     header("Location: admin.php");

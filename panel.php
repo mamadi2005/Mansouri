@@ -22,8 +22,9 @@
 session_start();
 
 require_once 'db.php';
+require_once __DIR__ . '/lib/helpers.php';
 
-if(!isset($_SESSION['is_logged']) || $_SESSION['is_logged'] !== true){
+if(!is_student_logged($_SESSION)){
     header("location: login.php");
     exit();
 }
@@ -52,7 +53,7 @@ if(isset($_POST['submit'])){
 
         $now = date("Y-m-d H:i:s");
 
-        if($entered_code == $row['code'] && $now <= $row['expires_at']){
+        if(is_admin_code_valid($entered_code, $row, $now)){
 
             $_SESSION['code_verified'] = true;
 
