@@ -1,9 +1,10 @@
 <?php
 //کد های این صفحه مربوط به  صفحه presenc.php هست که اطلاعات حضور دانشجو رو ثبت میکنه
 session_start();
+require_once __DIR__ . '/lib/helpers.php';
 header('Content-Type: application/json; charset=utf-8');
 //
-if (!isset($_SESSION['is_logged']) || $_SESSION['is_logged'] !== true) {
+if (!is_student_logged($_SESSION)) {
     http_response_code(403);
     echo json_encode(['success' => false, 'message' => 'ابتدا وارد شوید']);
     exit();
@@ -15,15 +16,17 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     exit();
 }
 
-$full_name = trim($_POST['full_name'] ?? '');
-$student_code = trim($_POST['student_code'] ?? '');
-$dars = trim($_POST['dars'] ?? '');
+$validation = validate_presence_input($_POST);
 
-if ($full_name === '' || $student_code === '' || $dars === '') {
+if (!$validation['ok']) {
     http_response_code(400);
-    echo json_encode(['success' => false, 'message' => 'اطلاعات کامل نیست']);
+    echo json_encode(['success' => false, 'message' => $validation['message']]);
     exit();
 }
+
+$full_name = $validation['fields']['full_name'];
+$student_code = $validation['fields']['student_code'];
+$dars = $validation['fields']['dars'];
 
 require_once 'db.php';
 

@@ -14,8 +14,9 @@
 <?php
 
 session_start();
+require_once __DIR__ . '/lib/helpers.php';
 $error = "";
-if(isset($_SESSION['is_admin_logged']) && $_SESSION['is_admin_logged'] === true){
+if(is_admin_logged($_SESSION)){
     header("location: admin.php");
     exit();
 }
@@ -31,7 +32,7 @@ if($_SERVER['REQUEST_METHOD'] == "POST"){
     
     if($result && $row = $result->fetch_assoc()){
         $storedPassword = $row['password'];
-        if(password_verify($password, $storedPassword) || $storedPassword === $password){
+        if(verify_admin_password($password, $storedPassword)){
             $_SESSION['is_admin_logged'] = true;
             header("location: admin.php");
             exit();
