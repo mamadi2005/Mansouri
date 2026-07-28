@@ -1,15 +1,9 @@
 <?php
+require_once 'includes/functions.php';
 include 'db.php';
 
-
-
-session_start();
-date_default_timezone_set('Asia/Tehran');
-
-        if(!isset($_SESSION['is_admin_logged']) || $_SESSION['is_admin_logged'] !== true){
-            header("Location: login_admin.php");
-            exit();
-        }
+start_app_session();
+require_admin();
 
 // این کد برای آپدیت اطلاعات استاد هست یادم باشه
 
@@ -18,9 +12,8 @@ $username = mysqli_real_escape_string($conn, $_POST['username']);
       $password = mysqli_real_escape_string($conn, $_POST['password']);
     $hashed_password = password_hash($password, PASSWORD_DEFAULT);
 $update = mysqli_query($conn, "UPDATE admin SET username='$username', password='$hashed_password' WHERE id=1");
-        $_SESSION['msg'] = $update ? "اطلاعات استاد آپدیت شد" : "خطا در به‌روزرسانی: ".mysqli_error($conn);
-    header("Location: settings.php");
-    exit();
+        set_flash($update ? "اطلاعات استاد آپدیت شد" : "خطا در به‌روزرسانی: ".mysqli_error($conn));
+    redirect("settings.php");
 }
 
 
@@ -30,13 +23,12 @@ if(isset($_POST['add_student'])){
                 $code = mysqli_real_escape_string($conn, $_POST['student_code']);
                 $check = mysqli_query($conn, "SELECT * FROM allowed_students WHERE student_code='$code'");
                 if(mysqli_num_rows($check) > 0){
-                    $_SESSION['msg'] = "این دانشجو قبلاً اضافه شده";
+                    set_flash("این دانشجو قبلاً اضافه شده");
                 } else {
                     $insert = mysqli_query($conn,"INSERT INTO allowed_students (student_code) VALUES ('$code')");
-                    $_SESSION['msg'] = $insert ? "دانشجو اضافه شد" : "خطا: ".mysqli_error($conn);
+                    set_flash($insert ? "دانشجو اضافه شد" : "خطا: ".mysqli_error($conn));
                 }
-                header("Location: settings.php");
-    exit();
+                redirect("settings.php");
 }
 
 //این کد حذف دانشجو هست یادم باشه
@@ -46,26 +38,17 @@ if(isset($_GET['delete_id'])){
     $delete_id = intval($_GET['delete_id']);
     if($delete_id > 0){
         $delete = mysqli_query($conn, "DELETE FROM allowed_students WHERE id=$delete_id LIMIT 1");
-        $_SESSION['msg'] = $delete ? "دانشجو حذف شد" : ("خطا در حذف: ".mysqli_error($conn));
+        set_flash($delete ? "دانشجو حذف شد" : ("خطا در حذف: ".mysqli_error($conn)));
     } else {
-        $_SESSION['msg'] = "آی‌دی نامعتبر برای حذف";
+        set_flash("آی‌دی نامعتبر برای حذف");
     }
-header("Location: settings.php");
-    exit();
+    redirect("settings.php");
 }
 
-        $msg = $_SESSION['msg'] ?? '';
-        unset($_SESSION['msg']);
+        $msg = take_flash();
+
+render_head('تنظیمات استاد', ['admin.css', 'settings_search.css']);
    ?>
-<!DOCTYPE html>
-<html lang="fa">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>تنظیمات استاد</title>
-    <link rel="stylesheet" href="admin.css">
-    <link rel="stylesheet" href="settings_search.css">
-</head>
 <body>
     <h1>پنل تنظیمات استاد</h1>
     <a href="admin.php" class="logout_header">بازگشت به پنل استاد</a>

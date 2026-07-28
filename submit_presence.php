@@ -1,18 +1,15 @@
 <?php
 //کد های این صفحه مربوط به  صفحه presenc.php هست که اطلاعات حضور دانشجو رو ثبت میکنه
-session_start();
+require_once 'includes/functions.php';
+start_app_session();
 header('Content-Type: application/json; charset=utf-8');
 //
-if (!isset($_SESSION['is_logged']) || $_SESSION['is_logged'] !== true) {
-    http_response_code(403);
-    echo json_encode(['success' => false, 'message' => 'ابتدا وارد شوید']);
-    exit();
+if (!is_student_logged()) {
+    json_response(false, 'ابتدا وارد شوید', 403);
 }
 // فقط اجازه می‌دهیم درخواست‌های POST برای ثبت حضور ارسال شود
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    http_response_code(405);
-    echo json_encode(['success' => false, 'message' => 'روش ارسال پشتیبانی نمی‌شود']);
-    exit();
+    json_response(false, 'روش ارسال پشتیبانی نمی‌شود', 405);
 }
 
 $full_name = trim($_POST['full_name'] ?? '');
@@ -20,9 +17,7 @@ $student_code = trim($_POST['student_code'] ?? '');
 $dars = trim($_POST['dars'] ?? '');
 
 if ($full_name === '' || $student_code === '' || $dars === '') {
-    http_response_code(400);
-    echo json_encode(['success' => false, 'message' => 'اطلاعات کامل نیست']);
-    exit();
+    json_response(false, 'اطلاعات کامل نیست', 400);
 }
 
 require_once 'db.php';
@@ -30,9 +25,7 @@ require_once 'db.php';
 $stmt = $conn->prepare("INSERT INTO attendance (student_code, full_name, dars) VALUES (?, ?, ?)");
 
 if (!$stmt) {
-    http_response_code(500);
-    echo json_encode(['success' => false, 'message' => 'خطا در prepare']);
-    exit();
+    json_response(false, 'خطا در prepare', 500);
 }
 // پارامترها را به صورت ایمن به کوئری متصل می‌کنیم
 $stmt->bind_param('sss', $student_code, $full_name, $dars);
@@ -41,10 +34,7 @@ $executed = $stmt->execute();
 $stmt->close();
 // اگر اجرا موفق بود پاسخ موفقیت‌آمیز می‌فرستیم
 if ($executed) {
-    echo json_encode(['success' => true, 'message' => 'حضور ثبت شد']);
-    exit();
+    json_response(true, 'حضور ثبت شد');
 }
 // اگر به اینجا رسیدیم یعنی خطا در اجرا بوده
-http_response_code(500);
-echo json_encode(['success' => false, 'message' => 'خطا در ثبت اطلاعات']);
-exit();
+json_response(false, 'خطا در ثبت اطلاعات', 500);
